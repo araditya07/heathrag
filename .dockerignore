@@ -1,0 +1,12 @@
+.git
+.venv
+.env
+.env.*
+__pycache__
+*.pyc
+*.pyo
+data/sources
+frontend
+RAG project Design system
+*.md
+.DS_Store

@@ -1,0 +1,77 @@
+{
+  "potassium": {
+    "critical_high": 6.0,
+    "critical_low": 2.5,
+    "unit": "mEq/L",
+    "action": "Seek immediate medical attention. Can cause cardiac arrhythmias.",
+    "severity": "critical"
+  },
+  "sodium": {
+    "critical_high": 160,
+    "critical_low": 120,
+    "unit": "mEq/L",
+    "action": "Seek immediate medical attention. Severe electrolyte imbalance.",
+    "severity": "critical"
+  },
+  "fasting_glucose": {
+    "critical_high": 500,
+    "critical_low": 50,
+    "unit": "mg/dL",
+    "action": "Seek immediate medical attention. Risk of diabetic ketoacidosis (high) or hypoglycemia (low).",
+    "severity": "critical"
+  },
+  "random_glucose": {
+    "critical_high": 500,
+    "critical_low": 50,
+    "unit": "mg/dL",
+    "action": "Seek immediate medical attention.",
+    "severity": "critical"
+  },
+  "hemoglobin": {
+    "critical_low": 7.0,
+    "critical_high": 20.0,
+    "unit": "g/dL",
+    "action": "Seek medical attention urgently. Severe anemia (low) or polycythemia (high).",
+    "severity": "critical"
+  },
+  "platelets": {
+    "critical_low": 50000,
+    "critical_high": 1000000,
+    "unit": "/µL",
+    "action": "Seek medical attention urgently. Bleeding risk (low) or clotting risk (high).",
+    "severity": "critical"
+  },
+  "wbc": {
+    "critical_low": 2000,
+    "critical_high": 30000,
+    "unit": "/µL",
+    "action": "Seek medical attention urgently. Severe neutropenia (low) or possible leukemia (high).",
+    "severity": "critical"
+  },
+  "inr": {
+    "critical_high": 5.0,
+    "unit": "ratio",
+    "action": "Seek immediate medical attention, especially if on anticoagulants. High bleeding risk.",
+    "severity": "critical"
+  },
+  "creatinine": {
+    "critical_high": 4.0,
+    "unit": "mg/dL",
+    "action": "Seek medical attention urgently. Severely impaired kidney function.",
+    "severity": "critical"
+  },
+  "calcium": {
+    "critical_low": 7.0,
+    "critical_high": 13.0,
+    "unit": "mg/dL",
+    "action": "Seek medical attention urgently. Risk of cardiac arrhythmias and seizures.",
+    "severity": "critical"
+  },
+  "tsh": {
+    "critical_high": 50.0,
+    "critical_low": 0.01,
+    "unit": "mIU/L",
+    "action": "Consult an endocrinologist promptly. Severe thyroid dysfunction.",
+    "severity": "high"
+  }
+}

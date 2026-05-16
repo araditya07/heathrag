@@ -1,0 +1,210 @@
+/* ============================================================
+   RAG Ops — Colors & Type
+   Two themes (light primary, dark alternative). Same token names,
+   swapped values. Set on <html data-theme="light|dark">.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root[data-theme="light"], :root {
+  /* ── Surfaces ── */
+  --bg-page:    #F7F7F5;            /* Warm off-white page bg — NOT pure white */
+  --bg-card:    #FFFFFF;            /* Cards, panels, elevated surfaces */
+  --bg-surface: #F1EFE8;            /* Metric cards, inputs, inset areas */
+  --bg-hover:   #ECEAE3;            /* Hover state on surfaces */
+
+  /* ── Text ── */
+  --text-primary:   #1A1A1A;
+  --text-secondary: #5F5E5A;
+  --text-tertiary:  #9B97A0;
+
+  /* ── Accent (EaseHealth green) — used sparingly ── */
+  --accent:            #0F6E56;
+  --accent-hover:      #085041;
+  --accent-surface:    #E1F5EE;
+  --accent-text:       #085041;
+  --accent-text-light: #0F6E56;
+
+  /* ── Semantic ── */
+  --success: #0F6E56;  --success-surface: #E1F5EE;  --success-text: #085041;
+  --warning: #BA7517;  --warning-surface: #FAEEDA;  --warning-text: #633806;
+  --danger:  #A32D2D;  --danger-surface:  #FCEBEB;  --danger-text:  #791F1F;
+  --info:    #185FA5;  --info-surface:    #E6F1FB;  --info-text:    #0C447C;
+  --purple:  #534AB7;  --purple-surface:  #EEEDFE;  --purple-text:  #3C3489;
+
+  /* ── Borders ── */
+  --border-light:  rgba(0, 0, 0, 0.06);
+  --border-medium: rgba(0, 0, 0, 0.10);
+  --border-active: #0F6E56;
+
+  /* ── Radii ── */
+  --radius-sm:   6px;
+  --radius-md:  10px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-pill: 999px;
+
+  /* ── Layout ── */
+  --sidebar-width: 240px;
+  --content-max-width: 920px;
+
+  /* ── Type families ── */
+  --font-display: 'Plus Jakarta Sans', -apple-system, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* ── Spacing scale (4px base) ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 14px;
+  --space-6: 16px;
+  --space-7: 18px;
+  --space-8: 20px;
+  --space-9: 24px;
+  --space-10: 28px;
+  --space-11: 32px;
+  --space-12: 36px;
+}
+
+:root[data-theme="dark"] {
+  --bg-page:    #0A0A0F;
+  --bg-card:    #12121A;
+  --bg-surface: #1A1A25;
+  --bg-hover:   #22222E;
+
+  --text-primary:   #F0EDE6;
+  --text-secondary: #9B97A0;
+  --text-tertiary:  #65616B;
+
+  --accent:            #2DD4A8;
+  --accent-hover:      #26B890;
+  --accent-surface:    rgba(45, 212, 168, 0.12);
+  --accent-text:       #2DD4A8;
+  --accent-text-light: #2DD4A8;
+
+  --success: #2DD4A8;  --success-surface: rgba(45, 212, 168, 0.12);  --success-text: #2DD4A8;
+  --warning: #F5A623;  --warning-surface: rgba(245, 166, 35, 0.12);  --warning-text: #F5A623;
+  --danger:  #EF5A5A;  --danger-surface:  rgba(239, 90, 90, 0.12);   --danger-text:  #EF5A5A;
+  --info:    #5B8DEF;  --info-surface:    rgba(91, 141, 239, 0.12);  --info-text:    #5B8DEF;
+  --purple:  #7F77DD;  --purple-surface:  rgba(127, 119, 221, 0.12); --purple-text:  #AFA9EC;
+
+  --border-light:  rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.10);
+  --border-active: #2DD4A8;
+}
+
+/* ============================================================
+   Base / semantic typography
+   ============================================================ */
+
+html, body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+
+/* Page title */
+h1, .ds-h1 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Section heading */
+h2, .ds-h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Panel heading */
+h3, .ds-h3 {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Card label — uppercase */
+.ds-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Body */
+p, .ds-body {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.8;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Small */
+.ds-small {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+/* Caption / metadata */
+.ds-caption {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+/* Metric value */
+.ds-metric-lg {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.0;
+  color: var(--text-primary);
+}
+.ds-metric-sm {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.0;
+  color: var(--text-primary);
+}
+
+/* Code / scores */
+code, .ds-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Nav item */
+.ds-nav-item {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}

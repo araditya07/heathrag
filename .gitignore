@@ -1,0 +1,38 @@
+## Secrets — never commit these
+.env
+.env.*
+!.env.example
+
+## Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.python-version
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Local scraped data + large generated outputs
+data/sources/
+data/*.json.bak
+
+## Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+frontend/.vercel/
+frontend/.vite/
+
+## Editors
+.vscode/
+.idea/
+*.swp
+
+## Fly.io / Docker scratch
+.fly/
+
+## Claude Code session state (don't commit)
+.claude/
