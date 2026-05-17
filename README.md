@@ -6,7 +6,7 @@ colorTo: blue
 sdk: docker
 app_port: 8000
 pinned: false
-short_description: AI health companion with safety guardrails, evals, and uploads
+short_description: AI health companion with safety guardrails + evals
 ---
 
 # HealthRAG
