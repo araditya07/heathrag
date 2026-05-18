@@ -332,7 +332,7 @@ export default function SearchPage() {
             </>
           )}
           </div>
-          <ChatPanel personalized={!!report} />
+          <ChatPanel personalized={!!report} report={report} />
         </div>
       )}
 

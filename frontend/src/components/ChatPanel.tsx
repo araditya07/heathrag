@@ -1,67 +1,128 @@
-import { MessageSquareText, Send, Stethoscope } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { postQuery, type QueryResponse } from "../lib/api";
+import { ChevronDown, ChevronUp, ExternalLink, MessageSquareText, Send, Stethoscope } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { postQuery, type LatestReport, type ParsedParameter, type QueryResponse, type Source } from "../lib/api";
 
 /**
- * Sticky right-side chat panel for asking follow-up questions.
+ * Sticky right-side chat panel for follow-up questions.
  *
- * Each turn calls /query independently (stateless on the backend; the user's
- * uploaded report is still applied via session_id). Messages stack in a
- * scrollable thread. Compact rendering — citations as inline pills, no full
- * source cards.
+ * Each turn calls /query independently (the backend is stateless turn-to-turn;
+ * the user's uploaded report is preserved via session_id in localStorage so
+ * follow-ups remain personalized). Compact rendering — citations stripped
+ * from the bubble text, but the underlying sources are kept and revealed via
+ * an expander so the user can see what the LLM was grounded in.
  */
 
-type ChatMessage =
-  | { role: "user"; text: string }
-  | {
-      role: "assistant";
-      text: string;
-      latency_ms: number;
-      sources: number;
-      refused: boolean;
-      flagged: boolean;
-    };
+type AssistantMsg = {
+  role: "assistant";
+  text: string;
+  latency_ms: number;
+  sources: Source[];
+  refused: boolean;
+  flagged: boolean;
+};
 
-const SUGGESTIONS_PERSONALIZED = [
-  "What lifestyle changes should I make?",
-  "Which of my values is most concerning?",
-  "What does a high HbA1c mean?",
-];
+type UserMsg = { role: "user"; text: string };
+type ChatMessage = UserMsg | AssistantMsg;
 
-const SUGGESTIONS_GENERIC = [
+const GENERIC_SUGGESTIONS = [
   "How is high blood pressure diagnosed?",
   "What are early signs of diabetes?",
   "How much physical activity per week?",
 ];
 
-function trimCitations(text: string): string {
-  // Strip [Source N] tokens — the chat panel renders compact answers and we
-  // don't show the source cards inline.
-  return text.replace(/\[Source\s+\d+\]/g, "").replace(/\s+/g, " ").trim();
+const HEALTHY_SUGGESTIONS = [
+  "What habits help keep blood sugar in range?",
+  "What screenings are appropriate for my age?",
+  "How do I maintain healthy cholesterol?",
+];
+
+function prettyName(name: string): string {
+  const overrides: Record<string, string> = {
+    hba1c: "HbA1c",
+    ldl: "LDL cholesterol",
+    hdl: "HDL cholesterol",
+    tsh: "TSH",
+    wbc: "WBC",
+    rbc: "RBC",
+    inr: "INR",
+    fasting_glucose: "fasting glucose",
+    total_cholesterol: "total cholesterol",
+  };
+  if (overrides[name]) return overrides[name];
+  return name.replace(/_/g, " ");
 }
 
+/** Clinical priority order. Critical first, then "high" (usually more
+ *  actionable than "low" in our corpus), then "low". */
+function priorityScore(p: ParsedParameter): number {
+  if (p.status === "critical_high" || p.status === "critical_low") return 0;
+  // Bias toward the well-known cardio-metabolic markers when sorting ties.
+  const cardio = new Set([
+    "hba1c", "fasting_glucose", "total_cholesterol", "ldl", "hdl",
+    "triglycerides", "tsh",
+  ]);
+  if (p.status === "high") return cardio.has(p.canonical_name) ? 1 : 2;
+  if (p.status === "low") return cardio.has(p.canonical_name) ? 3 : 4;
+  return 5;
+}
+
+function suggestionsFor(report: LatestReport | null): string[] {
+  if (!report) return GENERIC_SUGGESTIONS;
+  const params: ParsedParameter[] = Object.values(report.extracted_values ?? {});
+  if (params.length === 0) return GENERIC_SUGGESTIONS;
+
+  const abnormal = params.filter(
+    (p) => p.status !== "normal" && p.status !== "unknown"
+  );
+
+  // All-normal: ask maintenance questions instead.
+  if (abnormal.length === 0) return HEALTHY_SUGGESTIONS;
+
+  abnormal.sort((a, b) => priorityScore(a) - priorityScore(b));
+  const out: string[] = [];
+  for (const p of abnormal.slice(0, 3)) {
+    const name = prettyName(p.canonical_name);
+    const val = `${p.value} ${p.unit}`;
+    if (p.status === "critical_high" || p.status === "critical_low") {
+      out.push(`What should I do about my ${name} (${val})?`);
+    } else if (p.status === "high") {
+      out.push(`What lifestyle changes can lower my ${name} (${val})?`);
+    } else if (p.status === "low") {
+      out.push(`What can I do about my low ${name} (${val})?`);
+    }
+  }
+  // Always close with a holistic question if there's room.
+  if (out.length < 3) out.push("Which of my values is most concerning?");
+  return out;
+}
+
+function trimCitations(text: string): string {
+  return text.replace(/\[Source\s+\d+\]/g, "").replace(/\s+/g, " ").trim();
+}
 function stripMarkdownBold(text: string): string {
   return text.replace(/\*\*([^*]+)\*\*/g, "$1");
 }
-
-// Trim the LLM's own disclaimer line (we already have a site-wide DemoNotice
-// and a per-answer Disclaimer; the chat version stays clean).
 function stripTrailingDisclaimer(text: string): string {
-  return text
-    .replace(/⚕️\s*This information is for educational[\s\S]*$/i, "")
-    .trim();
+  return text.replace(/⚕️\s*This information is for educational[\s\S]*$/i, "").trim();
 }
-
 function formatForChat(text: string): string {
   return stripTrailingDisclaimer(stripMarkdownBold(trimCitations(text)));
 }
 
-export default function ChatPanel({ personalized }: { personalized: boolean }) {
+export default function ChatPanel({
+  personalized,
+  report,
+}: {
+  personalized: boolean;
+  report: LatestReport | null;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = useMemo(() => suggestionsFor(report), [report]);
 
   useEffect(() => {
     threadRef.current?.scrollTo({
@@ -85,7 +146,7 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
           role: "assistant",
           text: formatForChat(r.answer),
           latency_ms: r.latency_ms,
-          sources: r.sources?.length ?? 0,
+          sources: r.sources ?? [],
           refused: !!r.guardrail?.refused_diagnosis,
           flagged: !!r.guardrail?.flagged_critical,
         },
@@ -97,7 +158,6 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
     }
   };
 
-  const suggestions = personalized ? SUGGESTIONS_PERSONALIZED : SUGGESTIONS_GENERIC;
   const isEmpty = messages.length === 0;
 
   return (
@@ -132,7 +192,9 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
             Follow-up chat
           </div>
           <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-            Grounded in retrieved sources{personalized ? " + your uploaded report" : ""}
+            {personalized
+              ? "Personalized to your report + retrieved guidelines"
+              : "Grounded in retrieved guidelines"}
           </div>
         </div>
       </header>
@@ -157,13 +219,17 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
               padding: "16px 8px",
               display: "flex",
               flexDirection: "column",
-              gap: 8,
+              gap: 10,
               alignItems: "center",
             }}
           >
             <Stethoscope size={20} strokeWidth={1.5} />
-            <div>Ask a follow-up about your report or any health topic.</div>
-            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+            <div>
+              {personalized
+                ? "Suggested follow-ups for your report:"
+                : "Try a question about your health:"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
               {suggestions.map((s) => (
                 <button
                   key={s}
@@ -180,6 +246,15 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
                     fontSize: 12,
                     color: "var(--text-secondary)",
                     fontFamily: "inherit",
+                    lineHeight: 1.4,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--accent-surface)";
+                    e.currentTarget.style.color = "var(--accent-text)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "var(--bg-card)";
+                    e.currentTarget.style.color = "var(--text-secondary)";
                   }}
                 >
                   {s}
@@ -283,6 +358,7 @@ export default function ChatPanel({ personalized }: { personalized: boolean }) {
 }
 
 function ChatBubble({ message }: { message: ChatMessage }) {
+  const [open, setOpen] = useState(false);
   if (message.role === "user") {
     return (
       <div
@@ -317,7 +393,8 @@ function ChatBubble({ message }: { message: ChatMessage }) {
         gap: 6,
       }}
     >
-      <div>{message.text}</div>
+      <div style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+
       <div
         style={{
           display: "flex",
@@ -326,10 +403,31 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           fontSize: 10,
           color: "var(--text-tertiary)",
           fontFamily: "var(--font-mono)",
+          flexWrap: "wrap",
         }}
       >
         <span>{message.latency_ms}ms</span>
-        <span>· {message.sources} sources</span>
+        {message.sources.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: "var(--accent-text-light)",
+              fontFamily: "inherit",
+              fontSize: 10,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            · {message.sources.length} source{message.sources.length === 1 ? "" : "s"}
+            {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
+        )}
         {message.refused && (
           <span className="pill info" style={{ fontSize: 9, padding: "1px 6px" }}>
             refused diagnosis
@@ -341,6 +439,59 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           </span>
         )}
       </div>
+
+      {open && message.sources.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            borderTop: "0.5px solid var(--border-light)",
+            paddingTop: 6,
+          }}
+        >
+          {message.sources.slice(0, 5).map((s, i) => (
+            <a
+              key={s.chunk_id}
+              href={s.source_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: 11,
+                color: "var(--accent-text-light)",
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                lineHeight: 1.4,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  background: "var(--accent-surface)",
+                  padding: "1px 5px",
+                  borderRadius: 4,
+                  color: "var(--accent-text)",
+                }}
+              >
+                Source {i + 1}
+              </span>
+              <span
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 220,
+                }}
+              >
+                {s.section_title || s.document_title || s.source_url}
+              </span>
+              <ExternalLink size={10} strokeWidth={2} />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
