@@ -1,6 +1,7 @@
 import { Check, Copy, FileUp, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import AnswerBody from "../components/AnswerBody";
+import ChatPanel from "../components/ChatPanel";
 import ConfirmDialog from "../components/ConfirmDialog";
 import CriticalAlert from "../components/CriticalAlert";
 import Disclaimer from "../components/Disclaimer";
@@ -125,8 +126,10 @@ export default function SearchPage() {
 
   const showEmpty = !resp && !loading;
 
+  const showEmptyHero = !resp && !loading;
+
   return (
-    <div className="page">
+    <div className={`page${showEmptyHero ? "" : " with-chat"}`}>
       {!resp && !loading && (
         <div className="search-empty">
           <h1>Understand your health, backed by real guidelines.</h1>
@@ -187,15 +190,16 @@ export default function SearchPage() {
       )}
 
       {!showEmpty && (
-        <div className="fade-up" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <SearchBar
-            value={q}
-            onChange={setQ}
-            onSubmit={() => submitQuery(q)}
-            loading={loading}
-            personalized={!!report}
-            onRemovePersonalized={() => setConfirmRemove(true)}
-          />
+        <div className="answer-layout fade-up">
+          <div className="answer-main">
+            <SearchBar
+              value={q}
+              onChange={setQ}
+              onSubmit={() => submitQuery(q)}
+              loading={loading}
+              personalized={!!report}
+              onRemovePersonalized={() => setConfirmRemove(true)}
+            />
 
           {err && (
             <div className="critical-alert" role="alert">
@@ -327,6 +331,8 @@ export default function SearchPage() {
               )}
             </>
           )}
+          </div>
+          <ChatPanel personalized={!!report} />
         </div>
       )}
 
@@ -343,3 +349,4 @@ export default function SearchPage() {
     </div>
   );
 }
+

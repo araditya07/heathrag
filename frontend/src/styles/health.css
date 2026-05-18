@@ -379,3 +379,29 @@
 .confirm-dialog p { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
 .confirm-dialog .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Answer view: 2-column layout with sticky chat panel on the right */
+.answer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  align-items: start;
+}
+.answer-layout .answer-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.page.with-chat {
+  max-width: 1320px;
+}
+@media (max-width: 1100px) {
+  .answer-layout {
+    grid-template-columns: 1fr;
+  }
+  .answer-layout .chat-panel {
+    position: static !important;
+    height: 520px !important;
+  }
+}
