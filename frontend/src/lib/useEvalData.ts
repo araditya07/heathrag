@@ -12,7 +12,16 @@ export function useEvalData() {
       try {
         const r = await getEvalRuns();
         setRuns(r);
-        if (r.length) setSelectedId(r[0].id);
+        // Prefer the most-recent COMPLETED run as the default selection.
+        // A run is considered complete when at least one headline metric is
+        // populated (eg retrieval_precision_at_k). Falls back to the
+        // most-recent row if no completed runs exist.
+        const isComplete = (x: EvalRun) =>
+          x.retrieval_precision_at_k != null ||
+          x.generation_faithfulness != null ||
+          x.guardrail_overall_pass_rate != null;
+        const firstComplete = r.find(isComplete);
+        setSelectedId((firstComplete ?? r[0])?.id ?? null);
       } catch (_e) {
         // empty state handled by caller
       } finally {

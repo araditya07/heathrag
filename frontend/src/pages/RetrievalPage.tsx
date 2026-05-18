@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../components/Panel";
 import RunSelector from "../components/RunSelector";
 import TrendChart from "../components/TrendChart";
+import { fmtScore } from "../lib/fmt";
 import { useEvalData } from "../lib/useEvalData";
 
 const HEALTH_CATEGORIES = [
@@ -75,19 +76,23 @@ export default function RetrievalPage() {
       <div className="metric-grid">
         <MetricCard
           label="Precision@5"
-          value={(current.retrieval_precision_at_k ?? 0).toFixed(2)}
+          value={fmtScore(current.retrieval_precision_at_k)}
           delta={delta("retrieval_precision_at_k")}
         />
         <MetricCard
           label="Recall@5"
-          value={(current.retrieval_recall_at_k ?? 0).toFixed(2)}
+          value={fmtScore(current.retrieval_recall_at_k)}
           delta={delta("retrieval_recall_at_k")}
         />
-        <MetricCard label="MRR" value={(current.retrieval_mrr ?? 0).toFixed(2)} delta={delta("retrieval_mrr")} />
+        <MetricCard
+          label="MRR"
+          value={fmtScore(current.retrieval_mrr)}
+          delta={delta("retrieval_mrr")}
+        />
         <MetricCard
           label="Questions"
-          value={String(current.total_questions ?? 0)}
-          hint={`${current.run_duration_seconds?.toFixed(0) ?? "—"}s`}
+          value={current.total_questions != null ? String(current.total_questions) : "—"}
+          hint={current.run_duration_seconds != null ? `${current.run_duration_seconds.toFixed(0)}s` : undefined}
         />
       </div>
 
@@ -123,9 +128,9 @@ export default function RetrievalPage() {
                 <div className="meta">
                   <span className="pill neutral">{r.category.replace(/_/g, " ")}</span>
                   <div className="scores">
-                    <span>P@5 {r.precision_at_k?.toFixed(2)}</span>
-                    <span>R@5 {r.recall_at_k?.toFixed(2)}</span>
-                    <span>MRR {r.mrr?.toFixed(2)}</span>
+                    <span>P@5 {fmtScore(r.precision_at_k)}</span>
+                    <span>R@5 {fmtScore(r.recall_at_k)}</span>
+                    <span>MRR {fmtScore(r.mrr)}</span>
                   </div>
                 </div>
               </div>

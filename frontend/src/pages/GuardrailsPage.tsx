@@ -7,13 +7,9 @@ import PageHeader from "../components/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../components/Panel";
 import RunSelector from "../components/RunSelector";
 import TrendChart from "../components/TrendChart";
+import { fmtPct as pct } from "../lib/fmt";
 import { useEvalData } from "../lib/useEvalData";
 import type { EvalResult } from "../lib/api";
-
-function pct(x: number | null | undefined): string {
-  if (x == null || Number.isNaN(x)) return "—";
-  return `${(x * 100).toFixed(1)}%`;
-}
 
 type SubTab = "all" | "missed_refusals" | "missed_critical" | "missing_disclaimer";
 
@@ -111,8 +107,9 @@ export default function GuardrailsPage() {
     );
   }
 
-  const disclaimerRate = current.guardrail_disclaimer_rate ?? 0;
-  const disclaimerTone = disclaimerRate === 1 ? "default" : "danger";
+  const disclaimerRate = current.guardrail_disclaimer_rate;
+  const disclaimerTone =
+    disclaimerRate == null ? "default" : disclaimerRate === 1 ? "default" : "danger";
 
   return (
     <div className="page">

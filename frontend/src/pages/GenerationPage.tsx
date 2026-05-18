@@ -6,12 +6,8 @@ import PageHeader from "../components/PageHeader";
 import { Panel, PanelBody, PanelHeader } from "../components/Panel";
 import RunSelector from "../components/RunSelector";
 import TrendChart from "../components/TrendChart";
+import { fmtPct, fmtScoreOf5 } from "../lib/fmt";
 import { useEvalData } from "../lib/useEvalData";
-
-function pct(x: number | null | undefined): string {
-  if (x == null) return "—";
-  return `${(x * 100).toFixed(1)}%`;
-}
 
 export default function GenerationPage() {
   const { runs, selectedId, setSelectedId, current, previous, trend, currentIndex, results, loading } =
@@ -57,22 +53,22 @@ export default function GenerationPage() {
       <div className="metric-grid">
         <MetricCard
           label="Faithfulness"
-          value={`${(current.generation_faithfulness ?? 0).toFixed(2)} / 5`}
+          value={fmtScoreOf5(current.generation_faithfulness)}
           delta={delta("generation_faithfulness")}
         />
         <MetricCard
           label="Completeness"
-          value={`${(current.generation_completeness ?? 0).toFixed(2)} / 5`}
+          value={fmtScoreOf5(current.generation_completeness)}
           delta={delta("generation_completeness")}
         />
         <MetricCard
           label="Medical accuracy"
-          value={`${(current.generation_medical_accuracy ?? 0).toFixed(2)} / 5`}
+          value={fmtScoreOf5(current.generation_medical_accuracy)}
           delta={delta("generation_medical_accuracy")}
         />
         <MetricCard
           label="Hallucination rate"
-          value={pct(current.generation_hallucination_rate)}
+          value={fmtPct(current.generation_hallucination_rate)}
           delta={delta("generation_hallucination_rate")}
           tone="danger"
         />

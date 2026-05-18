@@ -38,19 +38,34 @@ def _keyword_match(retrieved_content: str, keywords: list[str]) -> bool:
     if not keywords:
         return False
     lc = retrieved_content.lower()
+    # ALL keywords must appear (case-insensitive substring).
     return all(kw.lower() in lc for kw in keywords if kw)
+
+
+def _url_prefix_match(chunk_url: str, expected_urls) -> bool:
+    """A retrieved chunk is considered relevant if its source URL starts with
+    ANY of the expected URL prefixes from the golden dataset.
+
+    The dataset stores prefixes like 'https://www.cdc.gov/diabetes/' but the
+    chunks themselves carry full URLs like
+    'https://www.cdc.gov/diabetes/about/index.html'. Exact equality would
+    never match — prefix match is the right semantics.
+    """
+    if not chunk_url or not expected_urls:
+        return False
+    return any(chunk_url.startswith(prefix) for prefix in expected_urls if prefix)
 
 
 def _is_relevant(
     chunk: RetrievedChunk,
     expected_chunk_ids: set[str],
-    expected_source_urls: set[str],
+    expected_source_urls,
     expected_keywords: list[str],
 ) -> bool:
     if chunk.id in expected_chunk_ids:
         return True
     url = (chunk.metadata or {}).get("source_url", "")
-    if url and url in expected_source_urls:
+    if _url_prefix_match(url, expected_source_urls):
         return True
     return _keyword_match(chunk.content, expected_keywords)
 
