@@ -23,7 +23,7 @@
   },
   "total_cholesterol": {
     "unit": "mg/dL",
-    "aliases": ["total cholesterol", "cholesterol total", "t. cholesterol", "tc"],
+    "aliases": ["total cholesterol", "cholesterol total", "t. cholesterol", "tc", "cholesterol", "serum cholesterol"],
     "ranges": {
       "default": {"low": 0, "high": 200}
     },

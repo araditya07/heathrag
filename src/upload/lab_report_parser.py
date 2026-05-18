@@ -113,14 +113,32 @@ class LabReportParser:
     def normalize_parameter_name(self, raw_name: str) -> Optional[str]:
         if not raw_name:
             return None
-        cleaned = re.sub(r"[\s_\-.]+", " ", raw_name.lower()).strip()
-        cleaned = re.sub(r"\(.*?\)", "", cleaned).strip()  # drop parenthetical
+        # Lowercase + collapse internal punctuation/whitespace.
+        cleaned = re.sub(r"[\s_\-.,;]+", " ", raw_name.lower()).strip()
+        cleaned = re.sub(r"\(.*?\)", "", cleaned).strip()
+
+        # Reject names that look like sentence fragments / footnotes (real test
+        # names are short — typically 1-4 words).
+        if len(cleaned.split()) > 5 or len(cleaned) > 60:
+            return None
+
+        # "ratio" / "index" rows aren't direct parameters in our reference set
+        # (e.g. "CHOL/HDL Ratio" wrongly matches alias "hdl" via substring).
+        if re.search(r"\b(ratio|index|absolute count|differential count)\b", cleaned):
+            return None
+
         # Direct lookup
         if cleaned in self.alias_to_canonical:
             return self.alias_to_canonical[cleaned]
-        # Substring match against aliases (longer aliases first to avoid false positives)
+
+        # Word-boundary alias match — longer aliases first.
+        # Word-boundary avoids "k" matching "peak", "hb" matching "hepatitis b", etc.
         for alias in sorted(self.alias_to_canonical, key=len, reverse=True):
-            if alias and alias in cleaned:
+            if not alias or len(alias) < 3:
+                # Skip very short aliases (1-2 chars) which produce too many
+                # false positives without explicit anchoring.
+                continue
+            if re.search(rf"\b{re.escape(alias)}\b", cleaned):
                 return self.alias_to_canonical[alias]
         return None
 
@@ -212,22 +230,84 @@ class LabReportParser:
         return report
 
     def _rows_from_text(self, text: str) -> list[ExtractedRow]:
-        """Last-resort regex parsing for PDFs where table detection fails.
+        """Text-fallback parser for PDFs where pdfplumber's table detection fails.
 
-        Looks for patterns like: "Hemoglobin   12.3 g/dL   13.0-17.5".
+        Tested against common Indian lab report layouts (Sterling Accuris, Dr Lal
+        PathLabs, Thyrocare, SRL, Metropolis) where each result is rendered on
+        a single line in the form::
+
+            <Test Name> [H|L] <Numeric Value> <Unit> <Optional reference text>
+
+        The high/low flag may be space-separated (``H 7.10``) OR glued to the
+        value (``H10570``).  Reference can be a range (``13.0 - 16.5``), a
+        comparison (``<200``), or free-text (``Desirable : <200``).
         """
         rows: list[ExtractedRow] = []
-        line_re = re.compile(
-            r"^([A-Za-z][\w \-/\.()]+?)\s{2,}([-\d\.,]+)\s*([a-zA-Z%/µ]+)?\s*([-\d\.\s–-]+)?\s*$",
-            re.M,
+
+        # Lines we should ignore — method names, headers, footnotes, etc.
+        skip_re = re.compile(
+            r"^(test\s+result|biological|method|colorimetric|calculated|derived|"
+            r"electrical|chemiluminescence|microscopic|hexokinase|"
+            r"high\s+performance|sf\s+cube|enzymatic|page\s+\d|"
+            r"laboratory\s+test|patient|client|sample|approved|registration|"
+            r"explanation|note|reference|interpretation|comment|disclaimer|"
+            r"^[A-Z][a-z]+(\s+[A-Z][a-z]+)?$)",   # bare title-cased two-word lines
+            re.I,
         )
-        for m in line_re.finditer(text or ""):
+
+        # Per-result regex. Captures: name, optional H/L flag, numeric value,
+        # unit token, trailing reference text.
+        line_re = re.compile(
+            r"""
+            ^
+            ([A-Za-z][A-Za-z0-9\s\.\-/()',]{2,}?)        # name — at least 3 chars, may include spaces/punct
+            \s+
+            (?:([HL])\s*)?                                # optional flag (H/L), space-separated or glued
+            (\d+(?:[\.,]\d+)?)                            # numeric value (1, 1.5, 1,5)
+            \s+
+            ([A-Za-z%][\w/µ%³\.]*(?:/[\w]+)?)             # unit token
+            (?:\s+(.+?))?                                 # optional ref/range text
+            \s*$
+            """,
+            re.M | re.X,
+        )
+
+        for line in (text or "").split("\n"):
+            line = line.strip()
+            if not line or len(line) > 200 or skip_re.match(line):
+                continue
+            m = line_re.match(line)
+            if not m:
+                continue
+            name = m.group(1).strip(" .,-")
+            flag = m.group(2) or ""
+            value = m.group(3).replace(",", "")
+            unit = m.group(4).strip()
+            ref = (m.group(5) or "").strip()
+
+            # Filter: a "name" that is itself entirely numeric/short is not a parameter
+            if len(name) < 3 or name.lower() in {"page", "ref", "id", "no"}:
+                continue
+            # Filter: "names" that contain English connector words look like
+            # sentence fragments, not test names.
+            name_words = name.lower().split()
+            if any(w in {"the", "is", "are", "of", "with", "above", "below"}
+                   for w in name_words):
+                continue
+            # Filter: units that look like English words rather than unit tokens
+            if len(unit) < 1 or unit.lower() in {
+                "by", "on", "at", "in", "up", "to", "as", "for", "of", "the",
+                "and", "or", "than", "above", "below", "non", "reactive",
+            }:
+                continue
+
             rows.append(
                 ExtractedRow(
-                    raw_name=m.group(1).strip(),
-                    raw_value=m.group(2).strip(),
-                    raw_unit=(m.group(3) or "").strip(),
-                    raw_reference=(m.group(4) or "").strip(),
+                    raw_name=name,
+                    raw_value=value,
+                    raw_unit=unit,
+                    raw_reference=ref[:120],
+                    raw_flag=flag,
                 )
             )
         return rows
