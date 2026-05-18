@@ -4,6 +4,7 @@ import AnswerBody from "../components/AnswerBody";
 import ConfirmDialog from "../components/ConfirmDialog";
 import CriticalAlert from "../components/CriticalAlert";
 import Disclaimer from "../components/Disclaimer";
+import HealthNarrativeSummary from "../components/HealthNarrativeSummary";
 import HealthSourceCard from "../components/HealthSourceCard";
 import HealthSummaryCard from "../components/HealthSummaryCard";
 import SearchBar from "../components/SearchBar";
@@ -148,15 +149,18 @@ export default function SearchPage() {
               {uploading && <UploadProgress filename={uploading.filename} />}
               {report && (
                 <>
+                  {report.critical_flags?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <CriticalAlert flags={report.critical_flags} />
+                    </div>
+                  )}
+                  <div style={{ marginBottom: 12 }}>
+                    <HealthNarrativeSummary report={report} />
+                  </div>
                   <HealthSummaryCard
                     report={report}
                     onClose={() => setConfirmRemove(true)}
                   />
-                  {report.critical_flags?.length > 0 && (
-                    <div style={{ marginTop: 12 }}>
-                      <CriticalAlert flags={report.critical_flags} />
-                    </div>
-                  )}
                 </>
               )}
             </div>

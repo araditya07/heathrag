@@ -36,3 +36,7 @@ frontend/.vite/
 
 ## Claude Code session state (don't commit)
 .claude/
+
+## Sample lab PDFs (local fixtures, don't bloat the repo)
+RAG project Design system/*.pdf
+data/sample-reports/
