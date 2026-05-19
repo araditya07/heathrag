@@ -43,7 +43,7 @@ from src.evals.retrieval_eval import aggregate, evaluate_question  # noqa: E402
 from src.retrieval.retriever import Retriever  # noqa: E402
 
 
-DEFAULT_THRESHOLDS = [0.18, 0.20, 0.22, 0.25, 0.28, 0.30]
+DEFAULT_THRESHOLDS = [0.18, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
 
 
 def parse_thresholds(s: str) -> list[float]:
