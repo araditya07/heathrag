@@ -58,6 +58,13 @@ def main():
     p.add_argument("--judge-runs", type=int, default=JUDGE_RUNS_PER_QUESTION)
     p.add_argument("--backend", choices=["gemini", "ollama", "auto"], default="gemini")
     p.add_argument("--limit", type=int, default=None)
+    p.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help="Skip generation + judge. Only retrieval metrics are computed (no LLM "
+             "calls — useful when Gemini quota is exhausted or when iterating on "
+             "the retriever / chunker / corpus).",
+    )
     args = p.parse_args()
 
     sb = supabase_admin()
@@ -119,11 +126,55 @@ def main():
     guardrail_per_q = []
 
     for q in tqdm(golden, desc="Evaluating"):
-        # Retrieval-only eval
+        # Retrieval-only eval (no LLM call needed)
         ret = evaluate_question(
             retriever, q, k=args.k, use_threshold=True, threshold=args.threshold
         )
         retrieval_results.append(ret)
+
+        if args.retrieval_only:
+            # Skip generation + judge + guardrails. Write a retrieval-only row.
+            failure = classify_failure(
+                precision_at_k=ret.precision_at_k,
+                recall_at_k=ret.recall_at_k,
+                mrr=ret.mrr,
+                faithfulness=0,
+                completeness=0,
+                relevance=0,
+                hallucination_detected=False,
+                expected_guardrail=q.get("expected_guardrail"),
+                disclaimer_present=None,
+                refused_diagnosis=None,
+                flagged_critical=None,
+                contains_definitive_diagnosis=None,
+            )
+            per_q_records.append(
+                {
+                    "eval_run_id": run_id,
+                    "question_id": q["id"],
+                    "question_text": q["question"],
+                    "category": q["category"],
+                    "retrieved_chunk_ids": ret.retrieved_chunk_ids,
+                    "expected_chunk_ids": ret.expected_chunk_ids,
+                    "precision_at_k": ret.precision_at_k,
+                    "recall_at_k": ret.recall_at_k,
+                    "mrr": ret.mrr,
+                    "generated_answer": None,
+                    "faithfulness_score": None,
+                    "completeness_score": None,
+                    "hallucination_detected": None,
+                    "relevance_score": None,
+                    "medical_accuracy_score": None,
+                    "judge_reasoning": None,
+                    "disclaimer_present": None,
+                    "expected_guardrail": q.get("expected_guardrail"),
+                    "actual_guardrail_triggered": None,
+                    "guardrail_passed": None,
+                    "guardrail_failure_reason": None,
+                    "failure_type": failure,
+                }
+            )
+            continue
 
         # Full pipeline (with mock health context for personalized/critical/diagnosis questions)
         mock = q.get("mock_health_context")
@@ -213,21 +264,28 @@ def main():
         sb.table("eval_results").insert(per_q_records[i : i + BATCH]).execute()
 
     ret_agg = retrieval_aggregate(retrieval_results)
-    n = len(per_q_records) or 1
-    faith = sum(r["faithfulness_score"] for r in per_q_records) / n
-    comp = sum(r["completeness_score"] for r in per_q_records) / n
-    rel = sum(r["relevance_score"] for r in per_q_records) / n
-    med = sum(r["medical_accuracy_score"] for r in per_q_records) / n
-    hall_rate = sum(1 for r in per_q_records if r["hallucination_detected"]) / n
-
-    gr_agg = guardrail_aggregate(guardrail_per_q)
     duration = time.time() - start
 
-    sb.table("eval_runs").update(
-        {
-            "retrieval_precision_at_k": ret_agg.precision_at_k,
-            "retrieval_recall_at_k": ret_agg.recall_at_k,
-            "retrieval_mrr": ret_agg.mrr,
+    update_payload = {
+        "retrieval_precision_at_k": ret_agg.precision_at_k,
+        "retrieval_recall_at_k": ret_agg.recall_at_k,
+        "retrieval_mrr": ret_agg.mrr,
+        "run_duration_seconds": duration,
+    }
+
+    if args.retrieval_only:
+        # Generation + guardrail columns stay NULL — dashboards will render "—".
+        gr_agg = None
+        faith = comp = rel = med = hall_rate = None
+    else:
+        n = len(per_q_records) or 1
+        faith = sum(r["faithfulness_score"] for r in per_q_records) / n
+        comp = sum(r["completeness_score"] for r in per_q_records) / n
+        rel = sum(r["relevance_score"] for r in per_q_records) / n
+        med = sum(r["medical_accuracy_score"] for r in per_q_records) / n
+        hall_rate = sum(1 for r in per_q_records if r["hallucination_detected"]) / n
+        gr_agg = guardrail_aggregate(guardrail_per_q)
+        update_payload.update({
             "generation_faithfulness": faith,
             "generation_completeness": comp,
             "generation_hallucination_rate": hall_rate,
@@ -237,29 +295,32 @@ def main():
             "guardrail_refusal_rate": gr_agg.refusal_rate,
             "guardrail_critical_detection_rate": gr_agg.critical_detection_rate,
             "guardrail_overall_pass_rate": gr_agg.overall_pass_rate,
-            "run_duration_seconds": duration,
-        }
-    ).eq("id", run_id).execute()
+        })
+
+    sb.table("eval_runs").update(update_payload).eq("id", run_id).execute()
 
     print("\n" + "=" * 60)
     print(f"Eval run: {args.name}  (id={run_id})")
     print("=" * 60)
     print(f"Duration: {duration:.1f}s   Questions: {len(per_q_records)}")
+    if args.retrieval_only:
+        print(f"Mode: RETRIEVAL ONLY (generation + guardrail evals skipped)")
     print(f"\nRetrieval:")
     print(f"  Precision@{args.k}: {ret_agg.precision_at_k:.3f}")
     print(f"  Recall@{args.k}:    {ret_agg.recall_at_k:.3f}")
     print(f"  MRR:               {ret_agg.mrr:.3f}")
-    print(f"\nGeneration:")
-    print(f"  Faithfulness:      {faith:.2f} / 5")
-    print(f"  Completeness:      {comp:.2f} / 5")
-    print(f"  Relevance:         {rel:.2f} / 5")
-    print(f"  Medical accuracy:  {med:.2f} / 5")
-    print(f"  Hallucination rate: {hall_rate * 100:.1f}%")
-    print(f"\nGuardrails:")
-    print(f"  Disclaimer compliance:   {gr_agg.disclaimer_rate * 100:.1f}%")
-    print(f"  Diagnosis refusal:       {gr_agg.refusal_rate * 100:.1f}%  ({gr_agg.refusal_pass}/{gr_agg.refusal_total})")
-    print(f"  Critical value flagging: {gr_agg.critical_detection_rate * 100:.1f}%  ({gr_agg.critical_pass}/{gr_agg.critical_total})")
-    print(f"  Overall pass rate:       {gr_agg.overall_pass_rate * 100:.1f}%  ({gr_agg.overall_pass}/{gr_agg.overall_total})")
+    if not args.retrieval_only:
+        print(f"\nGeneration:")
+        print(f"  Faithfulness:      {faith:.2f} / 5")
+        print(f"  Completeness:      {comp:.2f} / 5")
+        print(f"  Relevance:         {rel:.2f} / 5")
+        print(f"  Medical accuracy:  {med:.2f} / 5")
+        print(f"  Hallucination rate: {hall_rate * 100:.1f}%")
+        print(f"\nGuardrails:")
+        print(f"  Disclaimer compliance:   {gr_agg.disclaimer_rate * 100:.1f}%")
+        print(f"  Diagnosis refusal:       {gr_agg.refusal_rate * 100:.1f}%  ({gr_agg.refusal_pass}/{gr_agg.refusal_total})")
+        print(f"  Critical value flagging: {gr_agg.critical_detection_rate * 100:.1f}%  ({gr_agg.critical_pass}/{gr_agg.critical_total})")
+        print(f"  Overall pass rate:       {gr_agg.overall_pass_rate * 100:.1f}%  ({gr_agg.overall_pass}/{gr_agg.overall_total})")
     print(f"\nBy category (retrieval):")
     print(json.dumps(ret_agg.by_category, indent=2))
 
