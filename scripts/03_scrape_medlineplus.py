@@ -64,36 +64,57 @@ def fetch(url: str, session: requests.Session) -> str | None:
         return None
 
 
+# Path segments that look like topic links but are NOT health topics.
+_NON_TOPIC_HREFS = {
+    "healthtopics", "all_healthtopics", "druginformation", "drugs", "drugs2",
+    "encyclopedia", "sitemap", "medicines", "overthecountermedicines",
+    "lab-tests", "medlineplus", "indexnews", "magazine", "magazine_issues",
+    "about", "newsletter", "social", "easytoread", "spanish", "search",
+    "site", "videos", "tutorials", "feeds", "rss", "ency",
+}
+
+_TOPIC_HREF_RE = re.compile(
+    r'href="https?://medlineplus\.gov/([a-z0-9-]+)\.html"', re.I
+)
+
+
 def discover_topic_urls(session: requests.Session) -> list[str]:
-    """Walk the A-Z index pages, harvest topic links, dedupe."""
-    urls: list[str] = []
+    """Read /all_healthtopics.html (a single ~1 MB page listing every topic)
+    and extract topic links. Falls back to A-Z index walking if that page is
+    unavailable.
+
+    Topic pages on medlineplus.gov are linked with absolute URLs of the form
+    `https://medlineplus.gov/<slug>.html` where slug is a flat single segment
+    (e.g. `a1c`, `aorticaneurysm`, `abdominalpain`). Drug, encyclopedia, and
+    nav links are filtered out by slug.
+    """
     seen = set()
-    for letter in string.ascii_uppercase:
-        index_url = f"{BASE}/healthtopics_{letter.lower()}.html"
-        html = fetch(index_url, session)
-        if not html:
-            continue
-        soup = BeautifulSoup(html, "html.parser")
-        # Topic links sit inside <ul id="index"> or similar list constructs;
-        # use a generic href filter that matches /<topic>.html under the root.
-        per_letter = 0
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if not href.startswith("/"):
+    urls: list[str] = []
+
+    def harvest(html: str):
+        for m in _TOPIC_HREF_RE.finditer(html):
+            slug = m.group(1).lower()
+            if slug in _NON_TOPIC_HREFS:
                 continue
-            if "healthtopics_" in href or "encyclopedia" in href or "drug" in href:
+            if slug.startswith(("how", "what", "feed")):
+                # filter out navigational anchors
                 continue
-            # We want plain topic pages like /diabetes.html, not /spanish/diabetes.html
-            if href.count("/") != 1 or not href.endswith(".html"):
-                continue
-            url = BASE + href
-            if url in seen:
-                continue
-            seen.add(url)
-            urls.append(url)
-            per_letter += 1
-            if per_letter >= PER_LETTER_CAP:
-                break
+            full = f"{BASE}/{slug}.html"
+            if full not in seen:
+                seen.add(full)
+                urls.append(full)
+
+    # Primary: single-page index
+    html = fetch(f"{BASE}/all_healthtopics.html", session)
+    if html:
+        harvest(html)
+    # Fallback: A-Z pages (rare; only if /all_healthtopics.html breaks)
+    if not urls:
+        for letter in string.ascii_uppercase:
+            html = fetch(f"{BASE}/healthtopics_{letter.lower()}.html", session)
+            if html:
+                harvest(html)
+
     return urls
 
 
